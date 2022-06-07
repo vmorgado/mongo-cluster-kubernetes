@@ -1,0 +1,183 @@
+#+title: Self Hosting production ready MongoDB with Kubernetes
+
+
+* Requirements:
+ - Minikube
+ - Kubectl
+
+* Sources:
+ - Install a mongo cluster in a kubernetes cluster : https://www.opcito.com/blogs/ways-to-host-a-mongodb-cluster-on-kubernetes
+ - Secure containerdized mongodb deployments : https://www.mongodb.com/blog/post/run-secure-containerized-mongodb-deployments-using-the-mongo-db-community-kubernetes-oper
+ - Mongodb Kubernetes Operator : https://github.com/mongodb/mongodb-kubernetes-operator.git
+
+* Process:
+** Create namespace for Mongo
+  - Create a namespace for mongo:
+#+begin_src bash
+kubectl create namespace mongodb
+#+end_src
+
+#+RESULTS:
+: namespace/mongodb created
+
+** Install Mongo Operator
+  - Clone the mongodb-kubernetes-operator repository and apply the deploy/clusterwide files:
+#+begin_src bash
+git clone https://github.com/mongodb/mongodb-kubernetes-operator.git
+cd mongodb-kubernetes-operator
+#+end_src
+
+#+begin_src bash
+kubectl apply -f deploy/clusterwide
+#+end_src
+
+  - Apply the Role, RoleBinding and ServiceAccount:
+#+begin_src bash
+kubectl apply -k config/rbac --namespace mongodb 
+#+end_src
+
+  - Install the Custom Resource Definitions:
+#+begin_src bash
+kubectl apply -f config/crd/bases/mongodbcommunity.mongodb.com_mongodbcommunity.yaml 
+#+end_src
+
+  - Verify that the Custom Resource Definitions installed successfully:
+#+begin_src bash
+kubectl get crd/mongodbcommunity.mongodbcommunity.mongodb.com 
+#+end_src
+
+#+RESULTS:
+| NAME                                          | CREATED              | AT |
+| mongodbcommunity.mongodbcommunity.mongodb.com | 2022-06-06T19:48:24Z |    |
+
+  - Install the Operator:
+#+begin_src bash
+kubectl create -f config/manager/manager.yaml --namespace mongodb
+#+end_src
+
+  - Verify if the Operator is installed correctly:
+#+begin_src bash
+kubectl get pods --namespace mongodb
+#+end_src
+
+#+RESULTS:
+| NAME                                         | READY | STATUS  | RESTARTS | AGE |
+| mongodb-kubernetes-operator-648bf8cc59-2hmwf | 1/1   | Running |        0 | 23s |
+
+** Install cert-manager and generate certificates
+  - Go to project mongo root directory
+  - Install Cert Manager:
+#+begin_src bash
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.0/cert-manager.yaml
+#+end_src
+
+#+RESULTS:
+| namespace/cert-manager                                                                          | created |
+| customresourcedefinition.apiextensions.k8s.io/certificaterequests.cert-manager.io               | created |
+| customresourcedefinition.apiextensions.k8s.io/certificates.cert-manager.io                      | created |
+| customresourcedefinition.apiextensions.k8s.io/challenges.acme.cert-manager.io                   | created |
+| customresourcedefinition.apiextensions.k8s.io/clusterissuers.cert-manager.io                    | created |
+| customresourcedefinition.apiextensions.k8s.io/issuers.cert-manager.io                           | created |
+| customresourcedefinition.apiextensions.k8s.io/orders.acme.cert-manager.io                       | created |
+| serviceaccount/cert-manager-cainjector                                                          | created |
+| serviceaccount/cert-manager                                                                     | created |
+| serviceaccount/cert-manager-webhook                                                             | created |
+| configmap/cert-manager-webhook                                                                  | created |
+| clusterrole.rbac.authorization.k8s.io/cert-manager-cainjector                                   | created |
+| clusterrole.rbac.authorization.k8s.io/cert-manager-controller-issuers                           | created |
+| clusterrole.rbac.authorization.k8s.io/cert-manager-controller-clusterissuers                    | created |
+| clusterrole.rbac.authorization.k8s.io/cert-manager-controller-certificates                      | created |
+| clusterrole.rbac.authorization.k8s.io/cert-manager-controller-orders                            | created |
+| clusterrole.rbac.authorization.k8s.io/cert-manager-controller-challenges                        | created |
+| clusterrole.rbac.authorization.k8s.io/cert-manager-controller-ingress-shim                      | created |
+| clusterrole.rbac.authorization.k8s.io/cert-manager-view                                         | created |
+| clusterrole.rbac.authorization.k8s.io/cert-manager-edit                                         | created |
+| clusterrole.rbac.authorization.k8s.io/cert-manager-controller-approve:cert-manager-io           | created |
+| clusterrole.rbac.authorization.k8s.io/cert-manager-controller-certificatesigningrequests        | created |
+| clusterrole.rbac.authorization.k8s.io/cert-manager-webhook:subjectaccessreviews                 | created |
+| clusterrolebinding.rbac.authorization.k8s.io/cert-manager-cainjector                            | created |
+| clusterrolebinding.rbac.authorization.k8s.io/cert-manager-controller-issuers                    | created |
+| clusterrolebinding.rbac.authorization.k8s.io/cert-manager-controller-clusterissuers             | created |
+| clusterrolebinding.rbac.authorization.k8s.io/cert-manager-controller-certificates               | created |
+| clusterrolebinding.rbac.authorization.k8s.io/cert-manager-controller-orders                     | created |
+| clusterrolebinding.rbac.authorization.k8s.io/cert-manager-controller-challenges                 | created |
+| clusterrolebinding.rbac.authorization.k8s.io/cert-manager-controller-ingress-shim               | created |
+| clusterrolebinding.rbac.authorization.k8s.io/cert-manager-controller-approve:cert-manager-io    | created |
+| clusterrolebinding.rbac.authorization.k8s.io/cert-manager-controller-certificatesigningrequests | created |
+| clusterrolebinding.rbac.authorization.k8s.io/cert-manager-webhook:subjectaccessreviews          | created |
+| role.rbac.authorization.k8s.io/cert-manager-cainjector:leaderelection                           | created |
+| role.rbac.authorization.k8s.io/cert-manager:leaderelection                                      | created |
+| role.rbac.authorization.k8s.io/cert-manager-webhook:dynamic-serving                             | created |
+| rolebinding.rbac.authorization.k8s.io/cert-manager-cainjector:leaderelection                    | created |
+| rolebinding.rbac.authorization.k8s.io/cert-manager:leaderelection                               | created |
+| rolebinding.rbac.authorization.k8s.io/cert-manager-webhook:dynamic-serving                      | created |
+| service/cert-manager                                                                            | created |
+| service/cert-manager-webhook                                                                    | created |
+| deployment.apps/cert-manager-cainjector                                                         | created |
+| deployment.apps/cert-manager                                                                    | created |
+| deployment.apps/cert-manager-webhook                                                            | created |
+| mutatingwebhookconfiguration.admissionregistration.k8s.io/cert-manager-webhook                  | created |
+| validatingwebhookconfiguration.admissionregistration.k8s.io/cert-manager-webhook                | created |
+
+  - Generate the CA key:
+#+begin_src bash
+openssl genrsa -out rootca.key 4096 
+#+end_src
+
+  - Configure rootca.cnf and generate CA Certificate
+#+begin_src bash
+openssl req -new -x509 -days 36500 -key rootca.key -out ca.crt -config rootca.cnf 
+#+end_src
+
+#+RESULTS:
+
+  - Create the certificate configmap and service
+#+begin_src bash
+kubectl create configmap ca-config-map --from-file="./ca.crt" --namespace mongodb 
+kubectl create secret tls ca-key-pair  --cert="./ca.crt"  --key="./rootca.key" --namespace mongodb 
+#+end_src
+
+#+RESULTS:
+| configmap/ca-config-map | created |
+| secret/ca-key-pair      | created |
+
+ 
+** Create a MongoDB replica set in Kubernetes: 
+
+#+begin_src bash
+kubectl apply -f mongodb-certmanager.yaml 
+kubectl apply -f mongodb-replicaset.yaml 
+kubectl apply -f mongodb-loadbalancer.yaml 
+#+end_src
+
+#+RESULTS:
+| issuer.cert-manager.io/ca-issuer-mongo                         | unchanged |
+| certificate.cert-manager.io/cert-manager-certificate           | unchanged |
+| mongodbcommunity.mongodbcommunity.mongodb.com/mongo-replicaset | created   |
+| secret/admin-password                                          | created   |
+| secret/dumpuser-password                                       | created   |
+| service/mongo-replicaset-0                                     | created   |
+| service/mongo-replicaset-1                                     | created   |
+| service/mongo-replicaset-2                                     | created   |
+
+** Integrating Prometeus for metrics
+- Create monitoring namespace
+#+begin_src bash
+kubectl create namespace monitoring
+#+end_src
+- Clone the kube-prometheus repository
+#+begin_src bash
+git clone https://github.com/prometheus-operator/kube-prometheus
+#+end_src
+- Install the kube-prometheus
+#+begin_src bash
+  kubectl apply --server-side -f manifests/setup
+  until kubectl get servicemonitors --all-namespaces ; do date; sleep 1; echo ""; done
+  kubectl apply -f manifests/
+#+end_src
+
+-
+
+
+https://github.com/prometheus-operator/kube-prometheus
+https://www.mongodb.com/blog/post/introducing-mongodb-prometheus-integration
